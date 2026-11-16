@@ -53,6 +53,8 @@ typedef struct s_coder
 	long			last_compile_ms;
 	long			compiles_done;
 	pthread_mutex_t	lock;
+	pthread_t		thread;
+	int				thread_started;
 	t_dongle		*first_dongle;
 	t_dongle		*second_dongle;
 	t_sim			*sim;
@@ -67,6 +69,13 @@ struct s_sim
 	pthread_mutex_t	log_mutex;
 	pthread_mutex_t	state_mutex;
 	int				stop;
+	int				log_mutex_initialized;
+	int				state_mutex_initialized;
+	int				monitor_started;
+	long			initialized_coders;
+	long			initialized_dongle_mutexes;
+	long			initialized_dongle_conds;
+	long			initialized_dongle_heaps;
 	long			start_ms;
 	long			next_seq;
 };
@@ -82,6 +91,8 @@ void	heap_sift_down(t_heap *h, int index);
 int		parse_args(int argc, char **argv, t_config *config);
 int		init_start_time(t_sim *sim);
 long	now_ms(const t_sim *sim);
+int		init_dongles(t_sim *sim);
+void	cleanup(t_sim *sim);
 int		dongle_acquire(t_dongle *dongle, t_coder *coder, t_sim *sim);
 void	dongle_release(t_dongle *dongle, t_sim *sim);
 int		sim_is_stopped(t_sim *sim);
@@ -89,6 +100,11 @@ int		wait_for_dongle(t_dongle *dongle, t_coder *coder, t_sim *sim);
 void	dongle_wake(t_dongle *dongle);
 int		coder_assign_dongles(t_sim *sim);
 void	*coder_routine(void *arg);
+void	*monitor_routine(void *arg);
 int		log_state(t_sim *sim, long id, const char *state);
+int		init_coders(t_sim *sim);
+int		sleep_ms(t_sim *sim, long duration);
+void	mark_compile_start(t_coder *coder);
+void	count_compile(t_coder *coder);
 
 #endif

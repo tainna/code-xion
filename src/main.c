@@ -17,14 +17,43 @@ static void	wake_all_dongles(t_sim *sim)
 	}
 }
 
-static void	stop_and_wake(t_sim *sim)
+static int	stop_and_wake(t_sim *sim)
 {
-	pthread_mutex_lock(&sim->log_mutex);
-	pthread_mutex_lock(&sim->state_mutex);
+	int	error;
+
+	error = pthread_mutex_lock(&sim->log_mutex);
+	if (error != 0)
+	{
+		fprintf(stderr, "Error: cannot lock log mutex while stopping: %s\n",
+			strerror(error));
+		return (0);
+	}
+	error = pthread_mutex_lock(&sim->state_mutex);
+	if (error != 0)
+	{
+		pthread_mutex_unlock(&sim->log_mutex);
+		fprintf(stderr, "Error: cannot lock state mutex while stopping: %s\n",
+			strerror(error));
+		return (0);
+	}
 	sim->stop = 1;
-	pthread_mutex_unlock(&sim->state_mutex);
-	pthread_mutex_unlock(&sim->log_mutex);
+	error = pthread_mutex_unlock(&sim->state_mutex);
+	if (error != 0)
+	{
+		pthread_mutex_unlock(&sim->log_mutex);
+		fprintf(stderr, "Error: cannot unlock state mutex while stopping: %s\n",
+			strerror(error));
+		return (0);
+	}
+	error = pthread_mutex_unlock(&sim->log_mutex);
+	if (error != 0)
+	{
+		fprintf(stderr, "Error: cannot unlock log mutex while stopping: %s\n",
+			strerror(error));
+		return (0);
+	}
 	wake_all_dongles(sim);
+	return (1);
 }
 
 static int	join_coders(t_sim *sim)
@@ -127,7 +156,7 @@ static int	initialize_sim(t_sim *sim, int argc, char **argv)
 int	main(int argc, char **argv)
 {
 	t_sim	sim;
-	int		ok;
+	int		error;
 
 	memset(&sim, 0, sizeof(sim));
 	if (!initialize_sim(&sim, argc, argv))
@@ -137,34 +166,36 @@ int	main(int argc, char **argv)
 	}
 	if (!start_coders(&sim))
 	{
-		stop_and_wake(&sim);
-		join_coders(&sim);
+		if (!stop_and_wake(&sim))
+			return (EXIT_FAILURE);
+		if (!join_coders(&sim))
+			return (EXIT_FAILURE);
 		cleanup(&sim);
 		return (EXIT_FAILURE);
 	}
-	sim.monitor_started = 1;
-	if (pthread_create(&sim.monitor, NULL, monitor_routine, &sim) != 0)
+	error = pthread_create(&sim.monitor, NULL, monitor_routine, &sim);
+	if (error != 0)
 	{
-		sim.monitor_started = 0;
-		fprintf(stderr, "Error: cannot create monitor thread.\n");
-		stop_and_wake(&sim);
-		join_coders(&sim);
+		fprintf(stderr, "Error: cannot create monitor thread: %s\n",
+			strerror(error));
+		if (!stop_and_wake(&sim))
+			return (EXIT_FAILURE);
+		if (!join_coders(&sim))
+			return (EXIT_FAILURE);
 		cleanup(&sim);
 		return (EXIT_FAILURE);
 	}
-	ok = 1;
-	if (pthread_join(sim.monitor, NULL) != 0)
+	error = pthread_join(sim.monitor, NULL);
+	if (error != 0)
 	{
-		fprintf(stderr, "Error: cannot join monitor thread.\n");
+		fprintf(stderr, "Error: cannot join monitor thread: %s\n",
+			strerror(error));
 		stop_and_wake(&sim);
-		ok = 0;
+		join_coders(&sim);
+		return (EXIT_FAILURE);
 	}
-	else
-		sim.monitor_started = 0;
 	if (!join_coders(&sim))
-		ok = 0;
-	cleanup(&sim);
-	if (!ok)
 		return (EXIT_FAILURE);
+	cleanup(&sim);
 	return (EXIT_SUCCESS);
 }

@@ -21,7 +21,10 @@ static void	stop_simulation(t_sim *sim, long burnout_id)
 	sim->stop = 1;
 	pthread_mutex_unlock(&sim->state_mutex);
 	if (burnout_id != 0)
+	{
 		printf("%ld %ld burned out\n", now_ms(sim), burnout_id);
+		fflush(stdout);
+	}
 	pthread_mutex_unlock(&sim->log_mutex);
 	wake_dongles(sim);
 }

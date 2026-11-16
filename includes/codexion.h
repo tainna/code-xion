@@ -71,7 +71,6 @@ struct s_sim
 	int				stop;
 	int				log_mutex_initialized;
 	int				state_mutex_initialized;
-	int				monitor_started;
 	long			initialized_coders;
 	long			initialized_dongle_mutexes;
 	long			initialized_dongle_conds;
